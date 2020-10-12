@@ -22,6 +22,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"k8s.io/klog"
 
@@ -835,8 +836,14 @@ func nodeMatchesNodeSelectorTerms(node *v1.Node, nodeSelectorTerms []v1.NodeSele
 // the requirements in both NodeAffinity and nodeSelector.
 func podMatchesNodeSelectorAndAffinityTerms(pod *v1.Pod, node *v1.Node) bool {
 	// Check if node.Labels match pod.Spec.NodeSelector.
-	if len(pod.Spec.NodeSelector) > 0 {
-		selector := labels.SelectorFromSet(pod.Spec.NodeSelector)
+	nodeSelector := make(map[string]string)
+	for key, value := range pod.Spec.NodeSelector {
+		if !strings.HasPrefix(key, "edgeimpulse.io") {
+			nodeSelector[key] = value
+		}
+	}
+	if len(nodeSelector) > 0 {
+		selector := labels.SelectorFromSet(nodeSelector)
 		if !selector.Matches(labels.Set(node.Labels)) {
 			return false
 		}

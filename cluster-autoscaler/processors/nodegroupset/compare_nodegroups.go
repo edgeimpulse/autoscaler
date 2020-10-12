@@ -18,6 +18,7 @@ package nodegroupset
 
 import (
 	"math"
+	"strings"
 
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -106,6 +107,9 @@ func IsNodeInfoSimilar(n1, n2 *schedulernodeinfo.NodeInfo) bool {
 	for _, node := range nodes {
 		for label, value := range node.Node().ObjectMeta.Labels {
 			ignore, _ := ignoredLabels[label]
+			if strings.HasPrefix(label, "edgeimpulse.io") {
+				ignore = true
+			}
 			if !ignore {
 				labels[label] = append(labels[label], value)
 			}
