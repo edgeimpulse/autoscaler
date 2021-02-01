@@ -170,6 +170,7 @@ var (
 	newPodScaleUpDelay            = flag.Duration("new-pod-scale-up-delay", 0*time.Second, "Pods less than this old will not be considered for scale-up.")
 
 	ignoreTaintsFlag                   = multiStringFlag("ignore-taint", "Specifies a taint to ignore in node templates when considering to scale a node group")
+	balancingLabelsFlag                = multiStringFlag("balancing-label", "Specifies a label to use when comparing if two node groups are similar")
 	balancingIgnoreLabelsFlag          = multiStringFlag("balancing-ignore-label", "Specifies a label to ignore in addition to the basic and cloud-provider set of labels when comparing if two node groups are similar")
 	awsUseStaticInstanceList           = flag.Bool("aws-use-static-instance-list", false, "Should CA fetch instance types in runtime or use a static list. AWS only")
 	enableProfiling                    = flag.Bool("profiling", false, "Is debug/pprof endpoint enabled")
@@ -238,6 +239,7 @@ func createAutoscalingOptions() config.AutoscalingOptions {
 		Regional:                           *regional,
 		NewPodScaleUpDelay:                 *newPodScaleUpDelay,
 		IgnoredTaints:                      *ignoreTaintsFlag,
+		BalancingLabels:                    *balancingLabelsFlag,
 		BalancingExtraIgnoredLabels:        *balancingIgnoreLabelsFlag,
 		KubeConfigPath:                     *kubeConfigFile,
 		NodeDeletionDelayTimeout:           *nodeDeletionDelayTimeout,
@@ -305,14 +307,18 @@ func buildAutoscaler() (core.Autoscaler, error) {
 	opts.Processors.PodListProcessor = core.NewFilterOutSchedulablePodListProcessor()
 
 	nodeInfoComparatorBuilder := nodegroupset.CreateGenericNodeInfoComparator
-	if autoscalingOptions.CloudProviderName == cloudprovider.AzureProviderName {
+	nodeInfoComparatorBuilderArgs := autoscalingOptions.BalancingExtraIgnoredLabels
+	if len(autoscalingOptions.BalancingLabels) > 0 {
+		nodeInfoComparatorBuilder = nodegroupset.CreateGenericNodeInfoLabelComparator
+		nodeInfoComparatorBuilderArgs = autoscalingOptions.BalancingLabels
+	} else if autoscalingOptions.CloudProviderName == cloudprovider.AzureProviderName {
 		nodeInfoComparatorBuilder = nodegroupset.CreateAzureNodeInfoComparator
 	} else if autoscalingOptions.CloudProviderName == cloudprovider.AwsProviderName {
 		nodeInfoComparatorBuilder = nodegroupset.CreateAwsNodeInfoComparator
 	}
 
 	opts.Processors.NodeGroupSetProcessor = &nodegroupset.BalancingNodeGroupSetProcessor{
-		Comparator: nodeInfoComparatorBuilder(autoscalingOptions.BalancingExtraIgnoredLabels),
+		Comparator: nodeInfoComparatorBuilder(nodeInfoComparatorBuilderArgs),
 	}
 
 	// This metric should be published only once.
